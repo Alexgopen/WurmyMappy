@@ -14,6 +14,9 @@ public class ReforestJob implements TileMapJob {
     private final int targetFoliagePercent;
     private final Random rand = new Random();
 
+    
+    
+    
     // --- Biome definitions ---
     private static final Tile[][] BIOMES = {
         { Tile.TILE_TREE_OAK, Tile.TILE_TREE_MAPLE, Tile.TILE_TREE_BIRCH },
@@ -22,6 +25,27 @@ public class ReforestJob implements TileMapJob {
         { Tile.TILE_TREE_WALNUT, Tile.TILE_TREE_CHESTNUT, Tile.TILE_TREE_LINDEN }
     };
 
+    
+    private static final float BIOME_RANDOM_CHANCE = 0.05f;
+
+    private static final Tile[] ALL_TREES;
+
+    static {
+        int count = 0;
+        for (Tile[] biome : BIOMES) {
+            count += biome.length;
+        }
+
+        Tile[] tmp = new Tile[count];
+        int i = 0;
+        for (Tile[] biome : BIOMES) {
+            for (Tile t : biome) {
+                tmp[i++] = t;
+            }
+        }
+        ALL_TREES = tmp;
+    }
+    
     private static final int[] BIOME_RADII = { 20, 30, 15, 25 };
     private static final int BIOME_SEEDS_PER_MAP = 40;
 
@@ -41,17 +65,32 @@ public class ReforestJob implements TileMapJob {
         float forestChance = targetFoliagePercent / 100f;
 
         int[][] forestPlan = new int[size][size];
-
+        boolean[][] biomeOccupied = new boolean[size][size];
+        int[][] firstBiome = new int[size][size];
+        for (int x = 0; x < size; x++) {
+            for (int y = 0; y < size; y++) {
+                firstBiome[x][y] = -1;
+            }
+        }
         int[][][] biomeWeights = new int[BIOMES.length][size][size];
 
          // Big, overlapping blobs
         for (int b = 0; b < BIOMES.length; b++) {
-            int radius = size / 8 + rand.nextInt(size / 16);
-            int seeds = (size * size) / 2000;
+            int radius = size / 16 + rand.nextInt(size / 16);
+            int seeds = (int) Math.pow(size/16, 2);
 
-            seedBiomeWeights(biomeWeights[b], size, radius, seeds);
+            seedBiomeWeights(
+                    b,
+                    biomeWeights[b],
+                    firstBiome,
+                    biomeOccupied,
+                    size,
+                    radius,
+                    seeds
+            );
 
             updateProgress(progress, 0, 30, b + 1, BIOMES.length, "Seeding biomes");
+
         }
 
     
@@ -67,9 +106,18 @@ public class ReforestJob implements TileMapJob {
                  if (map.getSurfaceHeight(x, y) < SEA_LEVEL) continue;
                  if (rand.nextFloat() > forestChance) continue;
     
-                 int biome = pickBiomeWeighted(biomeWeights, x, y);
-                 Tile tree = BIOMES[biome][rand.nextInt(BIOMES[biome].length)];
-    
+                 Tile tree;
+
+                 if (rand.nextFloat() < BIOME_RANDOM_CHANCE) {
+                     // 5% chance: free-select from all trees
+                     tree = ALL_TREES[rand.nextInt(ALL_TREES.length)];
+                 } else {
+                     // 95%: biome-respecting
+                     int biome = pickBiomeDominant(biomeWeights, firstBiome, x, y);
+                     Tile[] biomeTrees = BIOMES[biome];
+                     tree = biomeTrees[rand.nextInt(biomeTrees.length)];
+                 }
+
                  forestPlan[x][y] = tree.id;
              }
          }
@@ -105,10 +153,32 @@ public class ReforestJob implements TileMapJob {
     }
 
     
-    private void seedBiomeWeights(int[][] weights, int size, int radius, int seeds) {
-        for (int i = 0; i < seeds; i++) {
+    private void seedBiomeWeights(
+            int biomeIndex,
+            int[][] weights,
+            int[][] firstBiome,
+            boolean[][] occupied,
+            int size,
+            int radius,
+            int seeds) {
+
+        int attempts = 0;
+        int placed = 0;
+        int maxAttempts = seeds * 10; // prevent infinite loops
+
+        while (placed < seeds && attempts < maxAttempts) {
+            attempts++;
+
             int cx = rand.nextInt(size);
             int cy = rand.nextInt(size);
+
+            // Center must be free
+            if (occupied[cx][cy]) {
+                continue;
+            }
+
+            // Accept this center
+            placed++;
 
             int r2 = radius * radius;
 
@@ -122,32 +192,60 @@ public class ReforestJob implements TileMapJob {
 
                     int d2 = dx * dx + dy * dy;
                     if (d2 <= r2) {
-                        // Inverse falloff gives nice blobs
-                        weights[x][y] += (r2 - d2);
+                        int w = (r2 - d2) + (r2 / 2);
+                        weights[x][y] += w;
+
+                        if (firstBiome[x][y] == -1) {
+                            firstBiome[x][y] = biomeIndex;
+                        }
+
+                        occupied[x][y] = true;
                     }
+
                 }
             }
         }
     }
+
     
-    private int pickBiomeWeighted(int[][][] weights, int x, int y) {
-        int total = 0;
+    private int pickBiomeDominant(int[][][] weights, int[][] firstBiome, int x, int y) {
 
+        int dominant = firstBiome[x][y];
+        if (dominant < 0) return 0;
+
+        int overlapping = 0;
         for (int b = 0; b < weights.length; b++) {
-            total += weights[b][x][y];
+            if (b != dominant && weights[b][x][y] > 0) {
+                overlapping++;
+            }
         }
 
-        if (total <= 0) return 0; // absolute fallback
+        float roll = rand.nextFloat();
 
-        int roll = rand.nextInt(total);
-
-        for (int b = 0; b < weights.length; b++) {
-            roll -= weights[b][x][y];
-            if (roll < 0) return b;
+        // 75% dominant
+        if (roll < 0.75f) {
+            return dominant;
         }
 
-        return 0;
+        // 5% free handled outside
+        // Remaining 20% split across other biomes
+        if (overlapping > 0) {
+            float perBiome = 0.20f / overlapping;
+            roll -= 0.75f;
+
+            for (int b = 0; b < weights.length; b++) {
+                if (b != dominant && weights[b][x][y] > 0) {
+                    if (roll < perBiome) {
+                        return b;
+                    }
+                    roll -= perBiome;
+                }
+            }
+        }
+
+        return dominant;
     }
+
 
 
     private void ensureBiomeCoverage(int[][][] weights, int size) {
