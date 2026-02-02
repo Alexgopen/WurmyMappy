@@ -54,8 +54,8 @@ import com.wurmonline.mesh.GrassData.FlowerType;
 import com.wurmonline.mesh.GrassData.GrowthStage;
 import com.wurmonline.mesh.GrassData.GrowthTreeStage;
 import com.wurmonline.mesh.Tiles.Tile;
-import com.wurmonline.wurmapi.api.MapData;
-import com.wurmonline.wurmapi.api.WurmAPI;
+import com.wurmonline.wurmapi.api.MapDataV2;
+import com.wurmonline.wurmapi.api.WurmAPIV2;
 
 import net.buddat.wgenerator.util.Constants;
 import net.buddat.wgenerator.util.ProgressHandler;
@@ -65,7 +65,7 @@ public class MainWindow extends JFrame {
 
   private static final long serialVersionUID = -407206109473532425L;
 
-  private WurmAPI api;
+  private WurmAPIV2 api;
   private HeightMap heightMap;
   private TileMap tileMap;
   private ArrayList<String> genHistory;
@@ -474,8 +474,8 @@ public class MainWindow extends JFrame {
     comboBoxMapSize = new JComboBox<Integer>();
     inputPanel.add(comboBoxMapSize);
     comboBoxMapSize.setModel(
-        new DefaultComboBoxModel<Integer>(new Integer[] { 1024, 2048, 4096, 8192, 16384 }));
-    comboBoxMapSize.setSelectedIndex(1);
+        new DefaultComboBoxModel<Integer>(new Integer[] { 512, 1024, 2048, 4096, 8192, 16384 }));
+    comboBoxMapSize.setSelectedIndex(2);
 
     textFieldMapSeed = new JTextField("" + System.currentTimeMillis());
     textFieldMapSeed.setEnabled(false);
@@ -2315,7 +2315,7 @@ public class MainWindow extends JFrame {
     startLoading("Saving Images");
     try {
       updateApiMap();
-      MapData map = getApi().getMapData();
+      MapDataV2 map = getApi().getMapData();
       ImageIO.write(map.createMapDump(), "png", new File("./maps/" + mapName + "/map.png"));
       ImageIO.write(map.createTopographicDump(true, (short) 250), "png",
           new File("./maps/" + mapName + "/topography.png"));
@@ -2620,14 +2620,14 @@ public class MainWindow extends JFrame {
 
   }
 
-  private WurmAPI getApi() {
+  private WurmAPIV2 getApi() {
     if (apiClosed) {
       api = null;
     }
 
     if (api == null) {
       try {
-        api = WurmAPI.create("./maps/" + mapName + "/",
+        api = WurmAPIV2.create("./maps/" + mapName + "/",
             (int) (Math.log(heightMap.getMapSize()) / Math.log(2)));
         apiClosed = false;
       } catch (IOException e) {
@@ -2674,7 +2674,7 @@ public class MainWindow extends JFrame {
 
   private void updateApiMap() {
     startLoading("Updating Map");
-    MapData map = getApi().getMapData();
+    MapDataV2 map = getApi().getMapData();
     Random treeRand = new Random(System.currentTimeMillis());
 
     try {
