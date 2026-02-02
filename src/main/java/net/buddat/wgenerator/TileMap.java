@@ -47,92 +47,103 @@ class TileMap {
     this.lastBiomeChanges = new HashMap<Point, Tile>();
     setupTileColorMap();
   }
-
-  void dropDirt(final int dirtCount, final int maxSlope, final int maxDiagSlope,
-      final int maxDirtHeight, final double cliffRatio, final boolean landSlide,
-      final ProgressHandler progress) {
-    final double maxSlopeHeight = maxSlope * singleDirt;
-    final double maxDiagSlopeHeight = maxDiagSlope * singleDirt;
-    final double maxHeight = maxDirtHeight * singleDirt;
-    final double taperHeight = maxHeight - (dirtCount * singleDirt);
-    final int mapSize = heightMap.getMapSize();
-    final long startTime = System.currentTimeMillis();
-    dirtDropProgress = 0;
-
-    class Iteration implements Runnable {
-      final int sizex;
-      final int sizey;
-      final int ix;
-      final int iy;
-
-      public Iteration(int ix, int iy, int sizex, int sizey) {
-        this.ix = ix;
-        this.iy = iy;
-        this.sizex = sizex;
-        this.sizey = sizey;
-      }
-
-      public void run() {
-        for (int x = ix; x < ix + sizex; x++) {
-          for (int y = iy; y < iy + sizey; y++) {
-            int mod = heightMap.getMapSize() / 32;
-            if (x % mod == 0 && y % mod == 0) {
-              dirtDropProgress += mod * mod;
-              int progressValue = (int) ((float) dirtDropProgress
-                  / (heightMap.getMapSize() * heightMap.getMapSize() * dirtCount) * 100f);
-              long predict = (int) ((System.currentTimeMillis() - startTime) / 1000.0
-                  * (100.0 / progressValue - 1));
-              progress.update(progressValue,
-                  (progress.getText().substring(0, progress.getText().indexOf("(")) + "(" + predict
-                      + " secs)"));
-            }
-
-            if (dirtMap[x][y] >= findDropAmount(x, y, maxSlope, maxDiagSlope, dirtCount,
-                cliffRatio)) {
-              continue;
-            }
-
-            if (getTileHeight(x, y) > maxHeight) {
-              continue;
-            }
-
-            if (getTileHeight(x, y) > taperHeight) {
-              if (getTileHeight(x, y) / singleDirt + dirtCount / 2 > maxDirtHeight) {
-                continue;
-              }
-            }
-
-            if (landSlide) {
-              Point dropTile = findDropTile(x, y, maxSlopeHeight, maxDiagSlopeHeight);
-              addDirt((int) dropTile.getX(), (int) dropTile.getY(), 1);
-            } else {
-              Point dropTile = new Point(x, y);
-              addDirt((int) dropTile.getX(), (int) dropTile.getY(), 1);
-            }
-          }
-        }
-      }
-    }
-
-    Thread[] firstThreads = new Thread[dirtCount];
-    for (int i = 0; i < dirtCount; i++) {
-      firstThreads[i] = new Thread(new Iteration(0, 0, mapSize, mapSize));
-      firstThreads[i].start();
-    }
-    for (Thread thread : firstThreads) {
-      try {
-        thread.join();
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-        return;
-      }
-    }
-
-    // Reset seed due to drop dirt altering it
-    setBiomeSeed(biomeSeed);
-    System.err.println("Dirt Dropping (" + dirtCount + ") completed in "
-        + (System.currentTimeMillis() - startTime) + "ms.");
+  
+  public int getSize()
+  {
+      return heightMap.getMapSize();
   }
+
+  void dropDirt(
+          int dirtCount,
+          int maxSlope,
+          int maxDiagSlope,
+          int maxDirtHeight,
+          double cliffRatio,
+          boolean landSlide,
+          ProgressHandler progress
+      ) {
+          final int mapSize = heightMap.getMapSize();
+          final long startTime = System.currentTimeMillis();
+
+          final double maxSlopeHeight = maxSlope * singleDirt;
+          final double maxDiagSlopeHeight = maxDiagSlope * singleDirt;
+          final double maxHeight = maxDirtHeight * singleDirt;
+          final double taperHeight = maxHeight - (dirtCount * singleDirt);
+
+          dirtDropProgress = 0;
+
+          for (int x = 0; x < mapSize; x++) {
+              int progressValue = (int) ((float) x / mapSize * 99f);
+              long elapsed = System.currentTimeMillis() - startTime;
+              long predict = progressValue > 0
+                  ? (long) ((elapsed / 1000.0) * (100.0 / progressValue - 1))
+                  : 0;
+
+              progress.update(progressValue,
+                  progress.getText().substring(0, progress.getText().indexOf("(")) +
+                  "(" + predict + " secs)");
+
+              for (int y = 0; y < mapSize; y++) {
+
+                  if (getTileHeight(x, y) > maxHeight) {
+                      continue;
+                  }
+
+                  if (getTileHeight(x, y) > taperHeight &&
+                      getTileHeight(x, y) / singleDirt + dirtCount / 2 > maxDirtHeight) {
+                      continue;
+                  }
+
+                  int toDrop = findDropAmount(
+                      x, y, maxSlope, maxDiagSlope, dirtCount, cliffRatio);
+
+                  if (toDrop <= 0) {
+                      continue;
+                  }
+
+                  int dx = x;
+                  int dy = y;
+
+                  if (landSlide) {
+                      int bestX = x;
+                      int bestY = y;
+                      double base = getTileHeight(x, y);
+
+                      for (int ox = -1; ox <= 1; ox++) {
+                          for (int oy = -1; oy <= 1; oy++) {
+                              if (ox == 0 && oy == 0) continue;
+                              int nx = x + ox;
+                              int ny = y + oy;
+                              if (nx < 0 || ny < 0 || nx >= mapSize || ny >= mapSize) continue;
+
+                              double diff = base - getTileHeight(nx, ny);
+                              double limit = (ox == 0 || oy == 0)
+                                  ? maxSlopeHeight
+                                  : maxDiagSlopeHeight;
+
+                              if (diff >= limit) {
+                                  bestX = nx;
+                                  bestY = ny;
+                              }
+                          }
+                      }
+
+                      dx = bestX;
+                      dy = bestY;
+                  }
+
+                  short current = dirtMap[dx][dy];
+                  short next = (short) Math.min(current + 1, toDrop);
+                  setDirt(dx, dy, next);
+              }
+          }
+
+          setBiomeSeed(biomeSeed);
+
+          System.err.println("Dirt Dropping (" + dirtCount + ") completed in "
+              + (System.currentTimeMillis() - startTime) + "ms.");
+      }
+
 
   private int findDropAmount(int x, int y, double maxSlope, double maxDiagSlope, int dirtCount,
       double cliffRatio) {
@@ -379,7 +390,7 @@ class TileMap {
     return flowerMap[x][y];
   }
 
-  private void setType(int x, int y, Tile newType) {
+  public void setType(int x, int y, Tile newType) {
     typeMap[x][y] = newType;
   }
 

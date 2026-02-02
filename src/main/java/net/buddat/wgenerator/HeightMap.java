@@ -5,6 +5,9 @@ import java.awt.image.DataBufferUShort;
 import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.concurrent.Future;
+
 import javax.imageio.ImageIO;
 import javax.swing.JOptionPane;
 import net.buddat.wgenerator.util.Constants;
@@ -164,44 +167,110 @@ public class HeightMap {
    * @throws InterruptedException if a thread gets interrupted
    */
   void generateHeights(ProgressHandler progress) throws InterruptedException {
-    System.err.println("HeightMap seed set to: " + noiseSeed);
-    SimplexNoise.genGrad(noiseSeed);
+      System.err.println("HeightMap seed set to: " + noiseSeed);
+      SimplexNoise.genGrad(noiseSeed);
 
-    long startTime = System.currentTimeMillis();
-    for (int i = 0; i < iterations; i++) {
-      int progressValue = (int) ((float) i / iterations * 99f);
-      long predict = (int) ((System.currentTimeMillis() - startTime) / 1000.0
-          * (100.0 / progressValue - 1));
-      progress.update(progressValue,
-          progress.getText().substring(0, progress.getText().indexOf("(")) + "(" + predict
-              + " secs)");
+      final long startTime = System.currentTimeMillis();
+      final int cores = Constants.CPU_CORES;
 
-      final double iRes = resolution / Math.pow(2, i - 1);
-      double str = Math.pow(2, i - 1) * 2.0;
-      boolean clamp = (i == iterations - 1);
+      java.util.concurrent.ExecutorService pool =
+          java.util.concurrent.Executors.newFixedThreadPool(cores);
 
-      // Splits the map into equal vertical chunks for multithreading
-      int chunkSize = mapSize / Constants.CPU_CORES;
-      Thread[] threads = new Thread[Constants.CPU_CORES];
+      try {
+          for (int i = 0; i < iterations; i++) {
+              int progressValue = (int) ((float) i / iterations * 99f);
+              long elapsed = System.currentTimeMillis() - startTime;
+              long predict = progressValue > 0
+                  ? (long) ((elapsed / 1000.0) * (100.0 / progressValue - 1))
+                  : 0;
 
-      for (int core = 0; core < Constants.CPU_CORES; core++) {
-        int start = core * chunkSize;
-        int end = start + Math.min(chunkSize, mapSize - chunkSize);
-        threads[core] = new GenHeightWorker(start, end, iRes, str, clamp);
-        threads[core].start();
+              progress.update(progressValue,
+                  progress.getText().substring(0, progress.getText().indexOf("(")) +
+                  "(" + predict + " secs)");
+
+              final double iRes = resolution / Math.pow(2, i - 1);
+              final double strength = Math.pow(2, i - 1) * 2.0;
+              final boolean clamp = (i == iterations - 1);
+
+              final int chunkSize = (mapSize + cores - 1) / cores;
+              java.util.List<java.util.concurrent.Future<?>> jobs =
+                  new ArrayList<Future<?>>(cores);
+
+              for (int core = 0; core < cores; core++) {
+                  final int startX = core * chunkSize;
+                  final int endX = Math.min(startX + chunkSize, mapSize);
+
+                  if (startX >= endX) {
+                      continue;
+                  }
+
+                  jobs.add(pool.submit(new Runnable() {
+                      @Override
+                      public void run() {
+                          for (int x = startX; x < endX; x++) {
+                              double[] column = heightArray[x];
+                              for (int y = 0; y < mapSize; y++) {
+                                  double h =
+                                      column[y] +
+                                      SimplexNoise.noise(x / iRes, y / iRes) / strength;
+
+                                  if (h < (moreLand ? -1d : 0d)) {
+                                      h = (moreLand ? -1d : 0d);
+                                  } else if (h > 1d) {
+                                      h = 1d;
+                                  }
+
+                                  column[y] = h;
+
+                                  if (clamp) {
+                                      applyBorderClamp(x, y);
+                                  }
+                              }
+                          }
+                      }
+                  }));
+              }
+
+              for (java.util.concurrent.Future<?> f : jobs) {
+                  try {
+                      f.get();
+                  } catch (java.util.concurrent.ExecutionException e) {
+                      throw new RuntimeException(e);
+                  }
+              }
+          }
+      } finally {
+          pool.shutdown();
+          pool.awaitTermination(1, java.util.concurrent.TimeUnit.DAYS);
       }
 
-      for (Thread thread : threads) {
-        thread.join();
-      }
+      System.err.println("HeightMap Generation (" + mapSize + ") completed in "
+          + (System.currentTimeMillis() - startTime) + "ms.");
 
-    }
-
-    System.err.println("HeightMap Generation (" + mapSize + ") completed in "
-        + (System.currentTimeMillis() - startTime) + "ms.");
-
-    normalizeHeights();
+      normalizeHeights();
   }
+  
+  private void applyBorderClamp(int x, int y) {
+      double h = heightArray[x][y];
+
+      if (moreLand) {
+          h = (h + 1) * 0.5d;
+      }
+
+      if (x <= borderCutoff + minimumEdge || y <= borderCutoff + minimumEdge) {
+          h *= Math.max(0,
+              (Math.min(Math.min(x, mapSize - y), Math.min(y, mapSize - x)) - minimumEdge)
+                  * borderNormalize);
+      } else if (mapSize - x <= borderCutoff + minimumEdge
+          || mapSize - y <= borderCutoff + minimumEdge) {
+          h *= Math.max(0,
+              (Math.min(mapSize - x, mapSize - y) - minimumEdge) * borderNormalize);
+      }
+
+      heightArray[x][y] = h;
+  }
+
+
 
   private class GenHeightWorker extends Thread {
 

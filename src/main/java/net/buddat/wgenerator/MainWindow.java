@@ -122,6 +122,8 @@ public class MainWindow extends JFrame {
   private final JCheckBox checkboxMoreLand;
   private final JCheckBox checkboxMapRandomSeed;
   private final JButton btnGenerateHeightmap;
+  private final JButton btnGenerateHeightmapV2;
+  private final JButton btnPaintmapV2;
   private final JButton btnErodeHeightmap;
   private final JButton btnUpdateWater;
   private final JButton btnDropDirt;
@@ -519,24 +521,41 @@ public class MainWindow extends JFrame {
 
     btnGenerateHeightmap = new JButton("Generate Heightmap");
     panel_7.add(btnGenerateHeightmap);
+    
+    final JPanel panel_7b = new JPanel();
+    btnGenerateHeightmapV2 = new JButton("Gen Map");
+    panel_7b.add(btnGenerateHeightmapV2);
+    
+    btnPaintmapV2 = new JButton("Paint Map");
+    panel_7b.add(btnPaintmapV2);
+    
     final GroupLayout gl_heightmapPanel = new GroupLayout(heightmapPanel);
     gl_heightmapPanel.setHorizontalGroup(
-        gl_heightmapPanel.createParallelGroup(Alignment.LEADING).addGroup(Alignment.TRAILING,
-            gl_heightmapPanel.createSequentialGroup().addContainerGap()
-                .addGroup(gl_heightmapPanel.createParallelGroup(Alignment.TRAILING)
-                    .addComponent(panel_6, Alignment.LEADING, GroupLayout.DEFAULT_SIZE, 303,
-                        Short.MAX_VALUE)
-                    .addComponent(panel_7, Alignment.LEADING, GroupLayout.DEFAULT_SIZE, 303,
-                        Short.MAX_VALUE))
-                .addContainerGap()));
+        gl_heightmapPanel.createParallelGroup(Alignment.LEADING)
+            .addGroup(Alignment.TRAILING,
+                gl_heightmapPanel.createSequentialGroup()
+                    .addContainerGap()
+                    .addGroup(gl_heightmapPanel.createParallelGroup(Alignment.TRAILING)
+                        .addComponent(panel_6, Alignment.LEADING, GroupLayout.DEFAULT_SIZE, 303, Short.MAX_VALUE)
+                        .addComponent(panel_7, Alignment.LEADING, GroupLayout.DEFAULT_SIZE, 303, Short.MAX_VALUE)
+                        .addComponent(panel_7b, Alignment.LEADING, GroupLayout.DEFAULT_SIZE, 303, Short.MAX_VALUE)
+                    )
+                    .addContainerGap()
+            )
+    );
     gl_heightmapPanel.setVerticalGroup(
-        gl_heightmapPanel.createParallelGroup(Alignment.TRAILING).addGroup(Alignment.LEADING,
-            gl_heightmapPanel.createSequentialGroup().addContainerGap()
-                .addComponent(panel_7, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
-                    GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(ComponentPlacement.RELATED)
-                .addComponent(panel_6, GroupLayout.DEFAULT_SIZE, 388, Short.MAX_VALUE)
-                .addContainerGap()));
+            gl_heightmapPanel.createParallelGroup(Alignment.TRAILING)
+                .addGroup(Alignment.LEADING,
+                    gl_heightmapPanel.createSequentialGroup()
+                        .addContainerGap()
+                        .addComponent(panel_7, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(ComponentPlacement.RELATED)
+                        .addComponent(panel_7b, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(ComponentPlacement.RELATED)
+                        .addComponent(panel_6, GroupLayout.DEFAULT_SIZE, 388, Short.MAX_VALUE)
+                        .addContainerGap()
+                )
+        );
 
     btnLoadHeightmap = new JButton("Import Heightmap");
     btnLoadHeightmap.setToolTipText("16 bit grayscale PNG");
@@ -1535,6 +1554,16 @@ public class MainWindow extends JFrame {
         }.start();
       }
     });
+    btnGenerateHeightmapV2.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent e) {
+            actionGenerateHeightmapV2AndDropDirt();
+        }
+      });
+    btnPaintmapV2.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent e) {
+            actionPaintmapV2();
+        }
+      });
     btnErodeHeightmap.addActionListener(new ActionListener() {
       public void actionPerformed(ActionEvent e) {
         if (!actionReady()) {
@@ -3072,6 +3101,157 @@ public class MainWindow extends JFrame {
       lblMapCoords.setText("Right click to place a marker");
     }
   }
+  
+  
+  private void actionGenerateHeightmapV2AndDropDirt() {
+      if (!actionReady()) {
+          return;
+      }
+
+      new Thread(() -> {
+          try {
+              // 1) Generate heightmap (V2)
+              actionGenerateHeightmapV2();
+
+              // 2) Drop dirt immediately after
+              actionDropDirtV2();
+              
+              mapPanel.repaint();
+
+          } catch (Exception e) {
+              e.printStackTrace();
+          }
+      }).start();
+  }
+  
+  private void actionPaintmapV2() {
+      if (!actionReady()) {
+          return;
+      }
+
+      new Thread(() -> {
+          try {
+              runTileJobs(
+                      new SandCoastlineJob(-100, 100)
+                  );
+
+              // 3) Refresh map
+              mapPanel.repaint();
+              
+              runTileJobs(
+                      new ReforestJob(35)
+                  );
+              
+              mapPanel.repaint();
+
+          } catch (Exception e) {
+              e.printStackTrace();
+          }
+      }).start();
+  }
+  
+  private void runTileJobs(TileMapJob... jobs) {
+      if (tileMap == null) return;
+
+      for (TileMapJob job : jobs) {
+          startLoading(job.getName());
+          try {
+              job.run(tileMap, progress);
+          } finally {
+              stopLoading();
+          }
+      }
+
+      updateMapView();
+  }
+
+  
+  void actionGenerateHeightmapV2() {
+
+      startLoading("Generating Height Map ()");
+      try {
+        api = null;
+        genHistory = new ArrayList<String>();
+
+        if (checkboxMapRandomSeed.isSelected()) {
+          textFieldMapSeed.setText("" + System.currentTimeMillis());
+        }
+
+        mapPanel.setMapSize((int) comboBoxMapSize.getSelectedItem());
+
+        heightMap = new HeightMap(textFieldMapSeed.getText().hashCode(),
+            (int) comboBoxMapSize.getSelectedItem(),
+            Double.parseDouble(textFieldMapResolution.getText()),
+            Integer.parseInt(textFieldMapIterations.getText()),
+            Integer.parseInt(textFieldMapMinEdge.getText()),
+            Integer.parseInt(textFieldMapBorderWeight.getText()),
+            Integer.parseInt(textFieldMapMaxHeight.getText()),
+            Integer.parseInt(textFieldNormalizeRatio.getText()), checkboxMoreLand.isSelected());
+
+        heightMap.generateHeights(progress);
+
+        defaultView = Constants.ViewType.HEIGHT;
+        updateMapView();
+
+        genHistory.add("HEIGHTMAP:" + textFieldMapSeed.getText() + ","
+            + comboBoxMapSize.getSelectedIndex() + "," + textFieldMapResolution.getText() + ","
+            + textFieldMapIterations.getText() + "," + textFieldMapMinEdge.getText() + ","
+            + textFieldMapBorderWeight.getText() + "," + textFieldMapMaxHeight.getText() + ","
+            + textFieldNormalizeRatio.getText() + "," + checkboxMoreLand.isSelected());
+      } catch (NumberFormatException nfe) {
+        JOptionPane.showMessageDialog(null, "Error parsing number " + nfe.getMessage().toLowerCase(),
+            "Error Generating HeightMap", JOptionPane.ERROR_MESSAGE);
+      } catch (InterruptedException ie) {
+        JOptionPane.showMessageDialog(null,
+            "Multithreading interrupted " + ie.getMessage().toLowerCase(),
+            "Error Generating HeightMap", JOptionPane.ERROR_MESSAGE);
+      } finally {
+        stopLoading();
+      }
+    }
+  
+  void actionDropDirtV2() {
+      if (heightMap == null) {
+        JOptionPane.showMessageDialog(null, "HeightMap does not exist", "Error Dropping Dirt",
+            JOptionPane.ERROR_MESSAGE);
+        return;
+      }
+
+      startLoading("Dropping Dirt ()");
+      try {
+        if (checkboxBiomeRandomSeed.isSelected()) {
+          textFieldBiomeSeed.setText("" + System.currentTimeMillis());
+        }
+        lblWater.setText("Water: " + textFieldWaterHeight.getText());
+
+        tileMap = new TileMap(heightMap);
+        tileMap.setBiomeSeed(textFieldBiomeSeed.getText().hashCode());
+        tileMap.setWaterHeight(Integer.parseInt(textFieldWaterHeight.getText()));
+        tileMap.dropDirt(Integer.parseInt(textFieldDirtPerTile.getText()),
+            Integer.parseInt(textFieldMaxDirtSlope.getText()),
+            Integer.parseInt(textFieldMaxDiagSlope.getText()),
+            Integer.parseInt(textFieldMaxDirtHeight.getText()),
+            Double.parseDouble(textFieldCliffRatio.getText()), checkBoxLandSlide.isSelected(),
+            progress);
+
+        if (defaultView == Constants.ViewType.HEIGHT) {
+          defaultView = Constants.ViewType.ISO;
+        }
+        updateMapView();
+
+        genHistory
+            .add("DROPDIRT:" + textFieldBiomeSeed.getText() + "," + textFieldWaterHeight.getText()
+                + "," + textFieldDirtPerTile.getText() + "," + textFieldMaxDirtSlope.getText() + ","
+                + textFieldMaxDiagSlope.getText() + "," + textFieldMaxDirtHeight.getText() + ","
+                + Double.parseDouble(textFieldCliffRatio.getText()) + ","
+                + checkBoxLandSlide.isSelected());
+      } catch (NumberFormatException nfe) {
+        JOptionPane.showMessageDialog(null, "Error parsing number " + nfe.getMessage().toLowerCase(),
+            "Error Dropping Dirt", JOptionPane.ERROR_MESSAGE);
+      } finally {
+        stopLoading();
+      }
+    }
 
   public void submitError(String err) {
     textAreaErrors.append(err);

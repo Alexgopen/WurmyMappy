@@ -9,8 +9,8 @@ public class Constants {
   public static final String WINDOW_TITLE = "Map Generator for Wurm Unlimited";
 
   public static final int MAP_SIZE = 2048;
-  public static final int MAP_HEIGHT = 4096;
-  public static final int RESOLUTION = MAP_SIZE / 8;
+  public static final int MAP_HEIGHT = 3300;
+  public static final int RESOLUTION = (int) (MAP_SIZE / 8 * 1.5)-50;
 
   public static final int HEIGHTMAP_ITERATIONS = 10;
   public static final int MIN_EDGE = 64;
@@ -25,7 +25,7 @@ public class Constants {
   public static final int DIRT_DROP_COUNT = 40;
   public static final int MAX_DIRT_SLOPE = 40;
   public static final int MAX_DIRT_DIAG_SLOPE = 56;
-  public static final int WATER_HEIGHT = 500;
+  public static final int WATER_HEIGHT = 800;
   public static final double CLIFF_RATIO = 2.5;
   public static final int ROCK_WEIGHT = 3600;
   public static final boolean MORE_LAND = true;
