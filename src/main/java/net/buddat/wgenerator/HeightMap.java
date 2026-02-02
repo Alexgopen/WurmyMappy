@@ -72,6 +72,44 @@ public class HeightMap {
 
     importHeightImage();
   }
+  
+  public double[][] getHeights()
+  {
+      return heightArray;
+  }
+  
+  public void setHeights(double[][] newHeights) {
+      if (newHeights == null) {
+          throw new IllegalArgumentException("Height array cannot be null");
+      }
+
+      if (newHeights.length != mapSize || newHeights[0].length != mapSize) {
+          throw new IllegalArgumentException(
+              "Height array size does not match map size (" + mapSize + ")");
+      }
+
+      double min = moreLand ? -1d : 0d;
+      double max = 1d;
+
+      for (int x = 0; x < mapSize; x++) {
+          double[] srcCol = newHeights[x];
+          double[] dstCol = heightArray[x];
+
+          for (int y = 0; y < mapSize; y++) {
+              double h = srcCol[y];
+
+              // Clamp to valid range
+              if (h < min) {
+                  h = min;
+              } else if (h > max) {
+                  h = max;
+              }
+
+              dstCol[y] = h;
+          }
+      }
+  }
+
 
   private void importHeightImage() {
     if (heightImage.getHeight() != heightImage.getWidth()) {

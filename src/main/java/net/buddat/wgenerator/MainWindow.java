@@ -50,6 +50,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileFilter;
 
 import com.wurmonline.mesh.FoliageAge;
+import com.wurmonline.mesh.Tiles;
 import com.wurmonline.mesh.GrassData.FlowerType;
 import com.wurmonline.mesh.GrassData.GrowthStage;
 import com.wurmonline.mesh.GrassData.GrowthTreeStage;
@@ -123,6 +124,7 @@ public class MainWindow extends JFrame {
   private final JCheckBox checkboxMapRandomSeed;
   private final JButton btnGenerateHeightmap;
   private final JButton btnGenerateHeightmapV2;
+  private final JButton btnGenAll;
   private final JButton btnPaintmapV2;
   private final JButton btnErodeHeightmap;
   private final JButton btnUpdateWater;
@@ -474,7 +476,7 @@ public class MainWindow extends JFrame {
     comboBoxMapSize = new JComboBox<Integer>();
     inputPanel.add(comboBoxMapSize);
     comboBoxMapSize.setModel(
-        new DefaultComboBoxModel<Integer>(new Integer[] { 512, 1024, 2048, 4096, 8192, 16384 }));
+        new DefaultComboBoxModel<Integer>(new Integer[] { 512, 1024, 2048, 4096, 8192 }));
     comboBoxMapSize.setSelectedIndex(2);
 
     textFieldMapSeed = new JTextField("" + System.currentTimeMillis());
@@ -525,7 +527,8 @@ public class MainWindow extends JFrame {
     final JPanel panel_7b = new JPanel();
     btnGenerateHeightmapV2 = new JButton("Gen Map");
     panel_7b.add(btnGenerateHeightmapV2);
-    
+    btnGenAll = new JButton("1 Click Map");
+    panel_7b.add(btnGenAll);
     btnPaintmapV2 = new JButton("Paint Map");
     panel_7b.add(btnPaintmapV2);
     
@@ -1557,6 +1560,11 @@ public class MainWindow extends JFrame {
     btnGenerateHeightmapV2.addActionListener(new ActionListener() {
         public void actionPerformed(ActionEvent e) {
             actionGenerateHeightmapV2AndDropDirt();
+        }
+      });
+    btnGenAll.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent e) {
+            actionGenAll();
         }
       });
     btnPaintmapV2.addActionListener(new ActionListener() {
@@ -3102,6 +3110,61 @@ public class MainWindow extends JFrame {
     }
   }
   
+  private void actionGenAll() {
+      if (!actionReady()) {
+          return;
+      }
+
+      new Thread(() -> {
+          try {
+              // 1) Generate heightmap (V2)
+              actionGenerateHeightmapV2();
+              mapPanel.repaint();
+              
+              
+              // 1.5
+              applyGaussianBlur(heightMap, 2.0);
+              mapPanel.repaint();
+              
+              // 2) Drop dirt immediately after
+              actionDropDirtV2();
+              
+              mapPanel.repaint();
+              
+              
+              
+              // Other button:
+              
+              int waterHeight = Integer.parseInt(textFieldWaterHeight.getText());
+              
+              runTileJobs(
+                      new SandCoastlineJob(waterHeight)
+                  );
+
+              // 3) Refresh map
+              mapPanel.repaint();
+              
+              runTileJobs(
+                      new ReforestJob(35)
+                  );
+              
+              mapPanel.repaint();
+              
+              
+              runTileJobs(
+                      new SeedClayJob(waterHeight),
+                      new SeedTarJob(waterHeight),
+                      new TileBetweenJob(Tiles.Tile.TILE_TUNDRA, 1650, 5000)
+                      );
+              
+              //seedTar();
+              mapPanel.repaint();
+
+          } catch (Exception e) {
+              e.printStackTrace();
+          }
+      }).start();
+  }
   
   private void actionGenerateHeightmapV2AndDropDirt() {
       if (!actionReady()) {
@@ -3112,7 +3175,13 @@ public class MainWindow extends JFrame {
           try {
               // 1) Generate heightmap (V2)
               actionGenerateHeightmapV2();
-
+              mapPanel.repaint();
+              
+              
+              // 1.5
+              applyGaussianBlur(heightMap, 2.0);
+              mapPanel.repaint();
+              
               // 2) Drop dirt immediately after
               actionDropDirtV2();
               
@@ -3131,8 +3200,10 @@ public class MainWindow extends JFrame {
 
       new Thread(() -> {
           try {
+              int waterHeight = Integer.parseInt(textFieldWaterHeight.getText());
+              
               runTileJobs(
-                      new SandCoastlineJob(-100, 100)
+                      new SandCoastlineJob(waterHeight)
                   );
 
               // 3) Refresh map
@@ -3142,6 +3213,16 @@ public class MainWindow extends JFrame {
                       new ReforestJob(35)
                   );
               
+              mapPanel.repaint();
+              
+              
+              runTileJobs(
+                      new SeedClayJob(waterHeight),
+                      new SeedTarJob(waterHeight),
+                      new TileBetweenJob(Tiles.Tile.TILE_TUNDRA, 1650, 5000)
+                      );
+              
+              //seedTar();
               mapPanel.repaint();
 
           } catch (Exception e) {
@@ -3164,7 +3245,6 @@ public class MainWindow extends JFrame {
 
       updateMapView();
   }
-
   
   void actionGenerateHeightmapV2() {
 
@@ -3209,6 +3289,86 @@ public class MainWindow extends JFrame {
         stopLoading();
       }
     }
+  
+  private void applyGaussianBlur(HeightMap heightMap, double sigma) {
+
+      if (sigma <= 0.0) {
+          return; // no blur
+      }
+
+      double[][] src = heightMap.getHeights();
+      
+      int size = src.length;
+
+      double[] kernel = buildGaussianKernel(sigma);
+      int radius = kernel.length / 2;
+
+      double[][] temp = new double[size][size];
+      double[][] dst  = new double[size][size];
+
+      // --- Horizontal pass ---
+      for (int y = 0; y < size; y++) {
+          for (int x = 0; x < size; x++) {
+              double sum = 0;
+              double weightSum = 0;
+
+              for (int k = -radius; k <= radius; k++) {
+                  int sx = clamp(x + k, 0, size - 1);
+                  double w = kernel[k + radius];
+                  sum += src[y][sx] * w;
+                  weightSum += w;
+              }
+
+              temp[y][x] = sum / weightSum;
+          }
+      }
+
+      // --- Vertical pass ---
+      for (int y = 0; y < size; y++) {
+          for (int x = 0; x < size; x++) {
+              double sum = 0;
+              double weightSum = 0;
+
+              for (int k = -radius; k <= radius; k++) {
+                  int sy = clamp(y + k, 0, size - 1);
+                  double w = kernel[k + radius];
+                  sum += temp[sy][x] * w;
+                  weightSum += w;
+              }
+
+              dst[y][x] = sum / weightSum;
+          }
+      }
+
+      heightMap.setHeights(dst);
+  }
+  
+  private double[] buildGaussianKernel(double sigma) {
+
+      int radius = (int) Math.ceil(sigma * 3.0);
+      int size = radius * 2 + 1;
+      double[] kernel = new double[size];
+
+      double sigma2 = sigma * sigma;
+      double sum = 0;
+
+      for (int i = -radius; i <= radius; i++) {
+          double value = Math.exp(-(i * i) / (2 * sigma2));
+          kernel[i + radius] = value;
+          sum += value;
+      }
+
+      // Normalize
+      for (int i = 0; i < size; i++) {
+          kernel[i] /= sum;
+      }
+
+      return kernel;
+  }
+
+  private int clamp(int v, int min, int max) {
+      return Math.max(min, Math.min(max, v));
+  }
   
   void actionDropDirtV2() {
       if (heightMap == null) {

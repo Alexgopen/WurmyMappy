@@ -79,9 +79,23 @@ class TileMap {
                   ? (long) ((elapsed / 1000.0) * (100.0 / progressValue - 1))
                   : 0;
 
+              String updateText = "";
+              
+              if (progress.getText() != null)
+              {
+                  try
+                  {
+                      updateText = progress.getText().substring(0, progress.getText().indexOf("(")) +
+                              "(" + predict + " secs)";
+                  }
+                  catch (Exception e)
+                  {
+                      updateText = "Dropping dirt: ("+predict+" secs)";
+                  }
+              }
+              
               progress.update(progressValue,
-                  progress.getText().substring(0, progress.getText().indexOf("(")) +
-                  "(" + predict + " secs)");
+                  updateText);
 
               for (int y = 0; y < mapSize; y++) {
 
@@ -302,6 +316,7 @@ class TileMap {
         if (setBiome(routeMap, p, nt, maxBiomeSlope * dirMod, type, minHeight, maxHeight,
             flowerType, flowerPercent)) {
           nextList.add(nt);
+          System.out.println("Grew "+type.getName()+" at "+p.toString()+" to "+nt.toString());
         }
       }
 
@@ -310,6 +325,7 @@ class TileMap {
         if (setBiome(routeMap, p, nt, maxBiomeSlope * dirMod, type, minHeight, maxHeight,
             flowerType, flowerPercent)) {
           nextList.add(nt);
+          System.out.println("Grew "+type.getName()+" at "+p.toString()+" to "+nt.toString());
         }
       }
 
@@ -318,6 +334,7 @@ class TileMap {
         if (setBiome(routeMap, p, nt, maxBiomeSlope * dirMod, type, minHeight, maxHeight,
             flowerType, flowerPercent)) {
           nextList.add(nt);
+          System.out.println("Grew "+type.getName()+" at "+p.toString()+" to "+nt.toString());
         }
       }
 
@@ -326,6 +343,7 @@ class TileMap {
         if (setBiome(routeMap, p, nt, maxBiomeSlope * dirMod, type, minHeight, maxHeight,
             flowerType, flowerPercent)) {
           nextList.add(nt);
+          System.out.println("Grew "+type.getName()+" at "+p.toString()+" to "+nt.toString());
         }
       }
     }

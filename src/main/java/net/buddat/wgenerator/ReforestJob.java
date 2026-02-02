@@ -130,7 +130,9 @@ public class ReforestJob implements TileMapJob {
         for (int x = 0; x < size; x++) {
             for (int y = 0; y < size; y++) {
                 int id = forestPlan[x][y];
-                if (id != 0) {
+                int h = map.getSurfaceHeight(x, y);
+                Tiles.Tile tile = map.getType(x, y);
+                if (id != 0 && h >= 0 && (tile.isGrass() || tile.isTree() || tile.isBush() || tile.id == Tiles.TILE_TYPE_DIRT)) {
                     map.setType(x, y, Tiles.getTile(id));
                     placed++;
                 }
