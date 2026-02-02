@@ -9,11 +9,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
 import javax.swing.JOptionPane;
-import lombok.extern.slf4j.Slf4j;
 import net.buddat.wgenerator.util.Constants;
 import net.buddat.wgenerator.util.ProgressHandler;
 
-@Slf4j
 class TileMap {
   private Random biomeRandom;
   private final HeightMap heightMap;
@@ -132,7 +130,7 @@ class TileMap {
 
     // Reset seed due to drop dirt altering it
     setBiomeSeed(biomeSeed);
-    log.info("Dirt Dropping (" + dirtCount + ") completed in "
+    System.err.println("Dirt Dropping (" + dirtCount + ") completed in "
         + (System.currentTimeMillis() - startTime) + "ms.");
   }
 
@@ -191,7 +189,7 @@ class TileMap {
 
     hasOres = true;
 
-    log.info("Ore Generation completed in " + (System.currentTimeMillis() - startTime) + "ms.");
+    System.err.println("Ore Generation completed in " + (System.currentTimeMillis() - startTime) + "ms.");
   }
 
   void undoLastBiome() {
@@ -241,7 +239,7 @@ class TileMap {
       }
     }
 
-    log.info("Biome Seeding (" + type.tilename + ") completed in "
+    System.err.println("Biome Seeding (" + type.tilename + ") completed in "
         + (System.currentTimeMillis() - startTime) + "ms.");
   }
 
@@ -270,7 +268,7 @@ class TileMap {
           maxBiomeSlope, minHeight, maxHeight, flowerType, flowerPercent);
     }
 
-    log.info("Biome Seeding (" + type.tilename + ") completed in "
+    System.err.println("Biome Seeding (" + type.tilename + ") completed in "
         + (System.currentTimeMillis() - startTime) + "ms.");
   }
 
@@ -557,7 +555,7 @@ class TileMap {
         }
       }
 
-      log.info("Biomes Import (" + mapSize + ") completed in "
+      System.err.println("Biomes Import (" + mapSize + ") completed in "
           + (System.currentTimeMillis() - startTime) + "ms.");
     } catch (Exception e) {
       e.printStackTrace();

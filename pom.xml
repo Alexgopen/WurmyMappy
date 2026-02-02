@@ -1,0 +1,38 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>net.buddat</groupId>
+    <artifactId>wgenerator</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>wgenerator</name>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+    </properties>
+
+    <!-- Repositories -->
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
+    <!-- Dependencies -->
+    <dependencies>
+        <!-- Wurm Mod API -->
+        <dependency>
+            <groupId>com.github.codeclubab.WurmModServerApi</groupId>
+            <artifactId>WurmModServerApi</artifactId>
+            <version>1.4.0.2</version>
+        </dependency>
+    </dependencies>
+</project>

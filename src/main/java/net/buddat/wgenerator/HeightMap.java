@@ -7,7 +7,6 @@ import java.io.File;
 import java.io.IOException;
 import javax.imageio.ImageIO;
 import javax.swing.JOptionPane;
-import lombok.extern.slf4j.Slf4j;
 import net.buddat.wgenerator.util.Constants;
 import net.buddat.wgenerator.util.ProgressHandler;
 import net.buddat.wgenerator.util.SimplexNoise;
@@ -16,7 +15,6 @@ import net.buddat.wgenerator.util.SimplexNoise;
  * 16 bit grayscale image. All height values for each point will be between 0.0
  * and 1.0
  */
-@Slf4j
 public class HeightMap {
   private final double[][] heightArray;
   private final long noiseSeed;
@@ -102,7 +100,7 @@ public class HeightMap {
         }
       }
 
-      log.info("HeightMap Import (" + mapSize + ") completed in "
+      System.err.println("HeightMap Import (" + mapSize + ") completed in "
           + (System.currentTimeMillis() - startTime) + "ms.");
     } catch (Exception e) {
       JOptionPane.showMessageDialog(null, "The map must be 16-bit grayscale.", "Error",
@@ -130,7 +128,7 @@ public class HeightMap {
       if (!imageFile.exists()) {
         boolean created = imageFile.mkdirs();
         if (!created) {
-          log.error("Failed to create imageFile directory!");
+          System.err.println("Failed to create imageFile directory!");
         }
       }
       ImageIO.write(bufferedImage, "png", imageFile);
@@ -166,7 +164,7 @@ public class HeightMap {
    * @throws InterruptedException if a thread gets interrupted
    */
   void generateHeights(ProgressHandler progress) throws InterruptedException {
-    log.info("HeightMap seed set to: " + noiseSeed);
+    System.err.println("HeightMap seed set to: " + noiseSeed);
     SimplexNoise.genGrad(noiseSeed);
 
     long startTime = System.currentTimeMillis();
@@ -199,7 +197,7 @@ public class HeightMap {
 
     }
 
-    log.info("HeightMap Generation (" + mapSize + ") completed in "
+    System.err.println("HeightMap Generation (" + mapSize + ") completed in "
         + (System.currentTimeMillis() - startTime) + "ms.");
 
     normalizeHeights();
@@ -264,7 +262,7 @@ public class HeightMap {
       }
     }
 
-    log.info("HeightMap Normalization (" + mapSize + ") completed in "
+    System.err.println("HeightMap Normalization (" + mapSize + ") completed in "
         + (System.currentTimeMillis() - startTime) + "ms.");
   }
 
@@ -282,7 +280,7 @@ public class HeightMap {
 
       erodeArea(0, 0, mapSize, minSlope, maxSlope, sedimentMax);
     }
-    log.info("HeightMap Erosion (" + iterations + ") completed in "
+    System.err.println("HeightMap Erosion (" + iterations + ") completed in "
         + (System.currentTimeMillis() - startTime) + "ms.");
   }
 

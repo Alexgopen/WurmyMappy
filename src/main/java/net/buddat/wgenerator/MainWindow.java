@@ -1,5 +1,54 @@
 package net.buddat.wgenerator;
 
+
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.EventQueue;
+import java.awt.Font;
+import java.awt.GridLayout;
+import java.awt.Point;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Random;
+
+import javax.imageio.ImageIO;
+import javax.swing.DefaultComboBoxModel;
+import javax.swing.GroupLayout;
+import javax.swing.GroupLayout.Alignment;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
+import javax.swing.JTabbedPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.LayoutStyle.ComponentPlacement;
+import javax.swing.SwingConstants;
+import javax.swing.UIDefaults;
+import javax.swing.UIManager;
+import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileFilter;
+
 import com.wurmonline.mesh.FoliageAge;
 import com.wurmonline.mesh.GrassData.FlowerType;
 import com.wurmonline.mesh.GrassData.GrowthStage;
@@ -7,29 +56,11 @@ import com.wurmonline.mesh.GrassData.GrowthTreeStage;
 import com.wurmonline.mesh.Tiles.Tile;
 import com.wurmonline.wurmapi.api.MapData;
 import com.wurmonline.wurmapi.api.WurmAPI;
-import lombok.extern.slf4j.Slf4j;
+
 import net.buddat.wgenerator.util.Constants;
 import net.buddat.wgenerator.util.ProgressHandler;
 import net.buddat.wgenerator.util.StreamCapturer;
 
-import javax.imageio.ImageIO;
-import javax.swing.*;
-import javax.swing.GroupLayout.Alignment;
-import javax.swing.LayoutStyle.ComponentPlacement;
-import javax.swing.border.EmptyBorder;
-import javax.swing.filechooser.FileFilter;
-import java.awt.*;
-import java.awt.color.ColorSpace;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.image.BufferedImage;
-import java.awt.image.WritableRaster;
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Random;
-
-@Slf4j
 public class MainWindow extends JFrame {
 
   private static final long serialVersionUID = -407206109473532425L;
@@ -1359,7 +1390,7 @@ public class MainWindow extends JFrame {
     progress = new ProgressHandler(progressBar, lblMemory);
     progress.update(100);
     StreamCapturer sc = new StreamCapturer(System.err, this);
-    System.setErr(new PrintStream(sc, true, StandardCharsets.UTF_8));
+    System.setErr(new PrintStream(sc, true));
 
     try {
       (new File(Constants.CONFIG_DIRECTORY)).mkdirs();
@@ -1369,7 +1400,7 @@ public class MainWindow extends JFrame {
 
     // Loads biome input values from config file
     String biomeValuesPath = Constants.CONFIG_DIRECTORY + "biome_values.txt";
-    try (FileReader fr = new FileReader(biomeValuesPath, StandardCharsets.UTF_8);
+    try (FileReader fr = new FileReader(biomeValuesPath);
          BufferedReader br = new BufferedReader(fr)) {
       String s;
 
@@ -2279,7 +2310,7 @@ public class MainWindow extends JFrame {
       if (!imageFile.exists()) {
         boolean created = imageFile.mkdirs();
         if (!created) {
-          log.warn("Failed to create imageFile directory");
+          System.err.println("Failed to create imageFile directory");
         }
       }
       ImageIO.write(bufferedImage, "png", imageFile);
@@ -2307,7 +2338,7 @@ public class MainWindow extends JFrame {
   void actionSaveGlobalBiomeValues() {
     try {
       String biomeValuesPath = Constants.CONFIG_DIRECTORY + "biome_values.txt";
-      FileWriter fw = new FileWriter(biomeValuesPath, StandardCharsets.UTF_8);
+      FileWriter fw = new FileWriter(biomeValuesPath);
       for (int bt = 0; bt < biomeOptionValue.length; bt++) {
         for (int bv = 0; bv < biomeOptionValue[0].length; bv++) {
           fw.write(biomeOptionValue[bt][bv]);
@@ -2339,12 +2370,12 @@ public class MainWindow extends JFrame {
       File biomeValueFile = fc.getSelectedFile();
       boolean created = biomeValueFile.createNewFile();
       if (!created) {
-        log.warn("Failed to create biome value file");
+        System.err.println("Failed to create biome value file");
       }
 
       String biotxt;
       try {
-        FileWriter fw = new FileWriter(biomeValueFile, StandardCharsets.UTF_8);
+        FileWriter fw = new FileWriter(biomeValueFile);
         for (int bt = 0; bt < 36; bt++) {
           for (int bv = 0; bv < 14; bv++) {
             biotxt = biomeOptionValue[bt][bv];
@@ -2384,7 +2415,7 @@ public class MainWindow extends JFrame {
         textFieldMapName.setText(biomeValueFile.getParentFile().getName());
         actionsFileDirectory = biomeValueFile.getParentFile().getAbsolutePath();
 
-        try (FileReader fr = new FileReader(biomeValueFile, StandardCharsets.UTF_8);
+        try (FileReader fr = new FileReader(biomeValueFile);
              BufferedReader br = new BufferedReader(fr)) {
           String s;
 
@@ -2428,10 +2459,10 @@ public class MainWindow extends JFrame {
 
       File actionsFile = fc.getSelectedFile();
       if (!actionsFile.createNewFile()) {
-        log.warn("Overwrote old actionsFile");
+        System.err.println("Overwrote old actionsFile");
       }
 
-      BufferedWriter bw = new BufferedWriter(new FileWriter(actionsFile, StandardCharsets.UTF_8));
+      BufferedWriter bw = new BufferedWriter(new FileWriter(actionsFile));
       for (String s : genHistory) {
         bw.write(s + "\r\n");
       }
@@ -2464,7 +2495,7 @@ public class MainWindow extends JFrame {
         textFieldMapName.setText(actionsFile.getParentFile().getName());
         actionsFileDirectory = actionsFile.getParentFile().getAbsolutePath();
 
-        FileReader fr = new FileReader(actionsFile, StandardCharsets.UTF_8);
+        FileReader fr = new FileReader(actionsFile);
         BufferedReader br = new BufferedReader(fr);
         String line;
         while ((line = br.readLine()) != null) {
@@ -2587,7 +2618,7 @@ public class MainWindow extends JFrame {
         progress.update((int) ((float) i / heightMap.getMapSize() * 98f));
         for (int j = 0; j < heightMap.getMapSize(); j++) {
           final float intensity = (float) heightMap.getHeight(i, j);
-          final var c = new Color(intensity, intensity, intensity);
+          final Color c = new Color(intensity, intensity, intensity);
           image.setRGB(i, j, c.getRGB());
         }
       }
